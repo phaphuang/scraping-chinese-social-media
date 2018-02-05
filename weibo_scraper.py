@@ -8,11 +8,14 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from time import sleep
 import csv
+import pandas as pd
 
+import urllib.request
 #def save_images(count, image):
 
+comments_row = []
 
-def save_comments(driver, pre_path, pre_pages):
+def save_comments(driver, pre_path, pre_pages, page):
 
     # Fetch the comments and write them to local files one by one.
     #num_comment = 0
@@ -33,53 +36,63 @@ def save_comments(driver, pre_path, pre_pages):
     # End
 
     print("Writing comments to local files!")
-    comments = driver.find_elements_by_xpath("//div[@class='feed_content wbcon']/p[@class='comment_txt'][last()]")
+    main_post = driver.find_elements_by_xpath("//div[@class='feed_content wbcon']")
     dates = driver.find_elements_by_xpath("//div[@class='feed_from W_textb']/a[@class='W_textb'][last()]")
-    phone = driver.find_elements_by_xpath("//div[@class='feed_from W_textb']/a[2][last()]")
+    phones = driver.find_elements_by_xpath("//div[@class='feed_from W_textb']/a[2][last()]")
 
-    #images_list = driver.find_elements_by_xpath("//ul[@class='WB_media_a WB_media_a_mn clearfix WB_media_a_m9']")
-    images_list = driver.find_elements_by_xpath("//div[@class='media_box']/ul")
+    share_cnts = driver.find_elements_by_xpath("//ul[@class='feed_action_info feed_action_row4']/li[2]/a/span/em")
+    comment_cnts = driver.find_elements_by_xpath("//ul[@class='feed_action_info feed_action_row4']/li[3]/a/span/em")
+    like_cnts = driver.find_elements_by_xpath("//ul[@class='feed_action_info feed_action_row4']/li[4]/a/span/em")
 
-    names_list = driver.find_elements_by_xpath("//div[@class='feed_content wbcon']/a[@class='W_texta W_fb']")
-    share_cnt = driver.find_elements_by_xpath("//ul[@class='feed_action_info feed_action_row4']/li[2]/a/span/em")
-    comment_cnt = driver.find_elements_by_xpath("//ul[@class='feed_action_info feed_action_row4']/li[3]/a/span/em")
-    like_cnt = driver.find_elements_by_xpath("//ul[@class='feed_action_info feed_action_row4']/li[4]/a/span/em")
-    #names = names_list[0].get_attribute('nick-name')
-    for i in range(len(comments)):
+    for i in range(len(main_post)):
         #path = pre_path + "/" + str(pre_pages + i + 1) + ".txt"
         #file = open(path, "w+", encoding = "utf-8")
         #file.write(comments[i].text)
         #file.close()
-        print(names_list[i].get_attribute('nick-name'))
+        name = main_post[i].find_elements_by_tag_name("a")[0].get_attribute('nick-name')
+        print(name)
+        #print(names_list[i].get_attribute('nick-name'))
         try:
-            images = images_list[i].find_elements_by_tag_name("li")
-            for image in images:
-                print(image.find_elements_by_tag_name("img")[0].get_attribute("src"))
-        except:
-            print("Could Not find Image")
-        print(comments[i].text)
+            #images = images_list[i].find_elements_by_tag_name("li")
+            images = main_post[i].find_elements_by_tag_name("div")[0].find_elements_by_tag_name("div")[0].find_elements_by_tag_name("li")
+            for ci, image in enumerate(images):
+                image_url = image.find_elements_by_tag_name("img")[0].get_attribute("src")
+                print(image_url)
+                urllib.request.urlretrieve(image_url, "images/pg" + str(page+1) + "pst" + str(i) + "pic"+ str(ci) +".jpg")
+        except Exception as e:
+            print(str(e))
+            #print("Could Not find Image")
+        post = main_post[i].find_elements_by_tag_name("p")[0].text
+        print(post)
         try:
-            print(dates[i].text)
+            date = dates[i].text
+            print(date)
         except:
             print("Could Not match date")
         try:
-            print(phone[i].text)
+            phone = phones[i].text
+            print(phone)
         except:
             print("Could Not find phone")
         try:
-            print(share_cnt[i].text)
+            share_cnt = share_cnts[i].text
+            print(share_cnt)
         except:
             print("NaN")
         try:
-            print(comment_cnt[i].text)
+            comment_cnt = comment_cnts[i].text
+            print(comment_cnt)
         except:
             print("NaN")
         try:
-            print(like_cnt[i].text)
+            like_cnt = like_cnts[i].text
+            print(like_cnt)
         except:
             print("NaN")
         #print(images[i])
-    return(pre_pages + len(comments))
+        comments_row.append([name, post, date, phone, share_cnt, comment_cnt, like_cnt])
+
+    return(pre_pages + len(main_post))
 
 def fetch_userinfo(driver, pre_path):
 
@@ -151,7 +164,7 @@ print("Wetsite opened!")
 
 # End
 
-pages = 2 # Number of pages you get from the search result.
+pages = 10 # Number of pages you get from the search result.
 pre_path = "D:/GitHub/ICDI Project/web-scraping-restaurants/output/"
 fetched_pages = 0
 for page in range(pages):
@@ -178,7 +191,7 @@ for page in range(pages):
             print("Page loading time out!")
             break
 
-    fetched_pages = save_comments(browser, pre_path, fetched_pages)
+    fetched_pages = save_comments(browser, pre_path, fetched_pages, page)
     fetch_userinfo(browser, pre_path)
 
     # click the "next page" button except the last page
@@ -188,3 +201,8 @@ for page in range(pages):
         print("Directing to next page!")
 
 print("Fetching finish!")
+
+# Create pandas dataframe and convert to csv
+column_name = ['Name', 'Post', 'Date', 'Phone', 'Share Counts', 'Comment Counts', 'Like Counts']
+df = pd.DataFrame(comments_row, columns=column_name)
+df.to_csv('output/WeiboPosts.csv', encoding='utf-8-sig')
